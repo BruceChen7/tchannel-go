@@ -307,6 +307,7 @@ func (mexset *messageExchangeSet) newExchange(ctx context.Context, framePool Fra
 		mexset.log.Debugf("Creating new %s message exchange for [%v:%d]", mexset.name, msgType, msgID)
 	}
 
+    // 创建message exchanger
 	mex := &messageExchange{
 		msgType:   msgType,
 		msgID:     msgID,
@@ -318,6 +319,7 @@ func (mexset *messageExchangeSet) newExchange(ctx context.Context, framePool Fra
 	}
 
 	mexset.Lock()
+    // 添加一个message exchange
 	addErr := mexset.addExchange(mex)
 	mexset.Unlock()
 
@@ -336,6 +338,7 @@ func (mexset *messageExchangeSet) newExchange(ctx context.Context, framePool Fra
 		return nil, addErr
 	}
 
+    // 调用回调
 	mexset.onAdded()
 
 	// TODO(mmihic): Put into a deadline ordered heap so we can garbage collected expired exchanges

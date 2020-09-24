@@ -70,6 +70,7 @@ func (ch *Channel) outboundHandshake(ctx context.Context, c net.Conn, outboundHP
 	return ch.newConnection(baseCtx, c, 1 /* initialID */, outboundHP, remotePeer, remotePeerAddress, events), nil
 }
 
+// 服务器端时使用, 入站握手
 func (ch *Channel) inboundHandshake(ctx context.Context, c net.Conn, events connectionEvents) (_ *Connection, err error) {
 	id := uint32(math.MaxUint32)
 
@@ -79,25 +80,31 @@ func (ch *Channel) inboundHandshake(ctx context.Context, c net.Conn, events conn
 	}()
 
 	req := &initReq{}
+    // 读取body，获取消息id
 	id, err = ch.readMessage(c, req)
 	if err != nil {
 		return nil, err
 	}
 
+    // 版本不合适
 	if req.Version < CurrentProtocolVersion {
 		return nil, unsupportedProtocolVersion(req.Version)
 	}
 
+    // 获取对端的ip地址信息
 	remotePeer, remotePeerAddress, err := parseRemotePeer(req.initParams, c.RemoteAddr())
 	if err != nil {
 		return nil, NewWrappedSystemError(ErrCodeProtocol, err)
 	}
 
+    // 初始化响应消息
 	res := &initRes{initMessage: ch.getInitMessage(ctx, id)}
+    // 直接写会消息
 	if err := ch.writeMessage(c, res); err != nil {
 		return nil, err
 	}
 
+    // 创建一个新的连接
 	return ch.newConnection(ctx, c, 0 /* initialID */, "" /* outboundHP */, remotePeer, remotePeerAddress, events), nil
 }
 
@@ -153,23 +160,30 @@ func (ch *Channel) initError(c net.Conn, connDir connectionDirection, id uint32,
 }
 
 func (ch *Channel) writeMessage(c net.Conn, msg message) error {
+    // 获取一帧
 	frame := ch.connectionOptions.FramePool.Get()
 	defer ch.connectionOptions.FramePool.Release(frame)
 
+    //直接写消息序列化
 	if err := frame.write(msg); err != nil {
 		return err
 	}
 	return frame.WriteOut(c)
 }
 
+// 读取消息，获取frame
+// message是一个base interface，表示一条消息
 func (ch *Channel) readMessage(c net.Conn, msg message) (uint32, error) {
+    // 获取frame 对象
 	frame := ch.connectionOptions.FramePool.Get()
 	defer ch.connectionOptions.FramePool.Release(frame)
 
+    // 一个整帧
 	if err := frame.ReadIn(c); err != nil {
 		return 0, err
 	}
 
+    // 消息类型不匹配
 	if frame.Header.messageType != msg.messageType() {
 		if frame.Header.messageType == messageTypeError {
 			return frame.Header.ID, readError(frame)

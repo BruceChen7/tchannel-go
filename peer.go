@@ -474,6 +474,7 @@ func (p *Peer) canRemove() bool {
 // addConnection adds an active connection to the peer's connection list.
 // If a connection is not active, returns ErrInvalidConnectionState.
 func (p *Peer) addConnection(c *Connection, direction connectionDirection) error {
+    // 返回链接池
 	conns := p.connectionsFor(direction)
 
 	if c.readState() != connectionActive {
@@ -481,6 +482,7 @@ func (p *Peer) addConnection(c *Connection, direction connectionDirection) error
 	}
 
 	p.Lock()
+    // 直接添加到客户端的连接
 	*conns = append(*conns, c)
 	p.Unlock()
 

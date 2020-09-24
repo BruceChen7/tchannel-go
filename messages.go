@@ -81,6 +81,7 @@ const (
 )
 
 // initMessage is the base for messages in the initialization handshake
+// 用户握手的请求
 type initMessage struct {
 	id         uint32
 	Version    uint16

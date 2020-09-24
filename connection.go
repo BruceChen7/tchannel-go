@@ -315,7 +315,9 @@ func (ch *Channel) setConnectionTosPriority(tosPriority tos.ToS, c net.Conn) err
 func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initialID uint32, outboundHP string, remotePeer PeerInfo, remotePeerAddress peerAddressComponents, events connectionEvents) *Connection {
 	opts := ch.connectionOptions.withDefaults()
 
+    // 获取连接id
 	connID := _nextConnID.Inc()
+    // 这个inbound, 就是一个flag，值为1, outbound为2
 	connDirection := inbound
 	log := ch.log.WithFields(LogFields{
 		{"connID", connID},
@@ -331,7 +333,9 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 	}
 
 	log = log.WithFields(LogField{"connectionDirection", connDirection})
+    // 获取本地server信息
 	peerInfo := ch.PeerInfo()
+    // 当前时间戳
 	timeNow := ch.timeNow().UnixNano()
 
 	c := &Connection{
@@ -343,15 +347,19 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 		connDirection:      connDirection,
 		opts:               opts,
 		state:              connectionActive,
+        // 发送channel
 		sendCh:             make(chan *Frame, opts.getSendBufferSize(remotePeer.ProcessName)),
+        // stop channel
 		stopCh:             make(chan struct{}),
 		localPeerInfo:      peerInfo,
 		remotePeerInfo:     remotePeer,
 		remotePeerAddress:  remotePeerAddress,
 		outboundHP:         outboundHP,
+        // 初始化
 		inbound:            newMessageExchangeSet(log, messageExchangeSetInbound),
 		outbound:           newMessageExchangeSet(log, messageExchangeSetOutbound),
 		internalHandlers:   ch.internalHandlers,
+        // 用户自己的回调
 		handler:            ch.handler,
 		events:             events,
 		commonStatsTags:    ch.commonStatsTags,
@@ -367,8 +375,10 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 		}
 	}
 
+    // 设置message id
 	c.nextMessageID.Store(initialID)
 	c.log = log
+    // 设置remove的回调
 	c.inbound.onRemoved = c.checkExchanges
 	c.outbound.onRemoved = c.checkExchanges
 	c.inbound.onAdded = c.onExchangeAdded
@@ -381,6 +391,7 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 	// Connections are activated as soon as they are created.
 	c.callOnActive()
 
+    // 创建两个goroutine
 	go c.readFrames(connID)
 	go c.writeFrames(connID)
 	return c
@@ -406,6 +417,7 @@ func (c *Connection) callOnActive() {
 	}
 	log.Info("Created new active connection.")
 
+    // 调用OnActive的回调
 	if f := c.events.OnActive; f != nil {
 		f(c)
 	}
@@ -679,6 +691,7 @@ func (c *Connection) readFrames(_ uint32) {
 			return
 		}
 
+        // 更新这一帧最新的活动时间
 		c.updateLastActivityRead(frame)
 
 		var releaseFrame bool
@@ -716,6 +729,7 @@ func (c *Connection) handleFrameNoRelay(frame *Frame) bool {
 	// call req and call res messages may not want the frame released immediately.
 	switch frame.Header.messageType {
 	case messageTypeCallReq:
+        // 获取rpc调用
 		releaseFrame = c.handleCallReq(frame)
 	case messageTypeCallReqContinue:
 		releaseFrame = c.handleCallReqContinue(frame)

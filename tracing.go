@@ -200,6 +200,7 @@ func InjectOutboundSpan(response *OutboundCallResponse, headers map[string]strin
 // will be made from the higher level function ExtractInboundSpan() once the
 // application headers are read from the wire.
 func (c *Connection) extractInboundSpan(callReq *callReq) opentracing.Span {
+    // 获取之前的span
 	spanCtx, err := c.Tracer().Extract(zipkinSpanFormat, &callReq.Tracing)
 	if err != nil {
 		if err != opentracing.ErrUnsupportedFormat && err != opentracing.ErrSpanContextNotFound {
@@ -211,7 +212,9 @@ func (c *Connection) extractInboundSpan(callReq *callReq) opentracing.Span {
 		return nil
 	}
 	operationName := "" // not known at this point, will be set later
+    // 设置当前rpc的span
 	span := c.Tracer().StartSpan(operationName, ext.RPCServerOption(spanCtx))
+    // 设置tag
 	span.SetTag("as", callReq.Headers[ArgScheme])
 	ext.PeerService.Set(span, callReq.Headers[CallerName])
 	c.setPeerHostPort(span)

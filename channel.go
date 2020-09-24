@@ -177,6 +177,7 @@ type Channel struct {
 		peerInfo     LocalPeerInfo // May be ephemeral if this is a client only channel
 		l            net.Listener  // May be nil if this is a client only channel
 		idleSweep    *idleSweep
+        // 连接信息
 		conns        map[uint32]*Connection
 	}
 }
@@ -252,7 +253,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 
 	if err := opts.validateIdleCheck(); err != nil {
 		return nil, err
-	}
+
 
 	// Default to dialContext if dialer is not passed in as an option
 	dialCtx := dialContext
@@ -335,11 +336,13 @@ func (ch *Channel) Serve(l net.Listener) error {
 	if mutable.l != nil {
 		return errAlreadyListening
 	}
+    // 将listener fd wrap住
 	mutable.l = tnet.Wrap(l)
 
 	if mutable.state != ChannelClient {
 		return errInvalidStateForOp
 	}
+    // 处于listenling
 	mutable.state = ChannelListening
 
 	mutable.peerInfo.HostPort = l.Addr().String()
@@ -362,6 +365,7 @@ func (ch *Channel) ListenAndServe(hostPort string) error {
 		return errAlreadyListening
 	}
 
+    // 监听tcp端口
 	l, err := net.Listen("tcp", hostPort)
 	if err != nil {
 		mutable.RUnlock()
@@ -473,11 +477,13 @@ func (ch *Channel) serve() {
 	acceptBackoff := 0 * time.Millisecond
 
 	for {
+        // 从accept返回了
 		netConn, err := ch.mutable.l.Accept()
 		if err != nil {
 			// Backoff from new accepts if this is a temporary error
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if acceptBackoff == 0 {
+                    // 第一次默认5毫秒
 					acceptBackoff = 5 * time.Millisecond
 				} else {
 					acceptBackoff *= 2
@@ -504,13 +510,16 @@ func (ch *Channel) serve() {
 		acceptBackoff = 0
 
 		// Perform the connection handshake in a background goroutine.
+        // 开始处理握手信息
 		go func() {
 			// Register the connection in the peer once the channel is set up.
+            // 设置连接事件
 			events := connectionEvents{
 				OnActive:           ch.inboundConnectionActive,
 				OnCloseStateChange: ch.connectionCloseStateChange,
 				OnExchangeUpdated:  ch.exchangeUpdated,
 			}
+            // 开始握手
 			if _, err := ch.inboundHandshake(context.Background(), netConn, events); err != nil {
 				netConn.Close()
 			}
@@ -652,10 +661,12 @@ func (ch *Channel) addConnection(c *Connection, direction connectionDirection) b
 	ch.mutable.Lock()
 	defer ch.mutable.Unlock()
 
+    // channel的状态不对
 	if c.readState() != connectionActive {
 		return false
 	}
 
+    // 处于client或者listening状态，直接添加到channel中
 	switch state := ch.mutable.state; state {
 	case ChannelClient, ChannelListening:
 		break
@@ -667,9 +678,11 @@ func (ch *Channel) addConnection(c *Connection, direction connectionDirection) b
 	return true
 }
 
+// 用来添加活动的连接
 func (ch *Channel) connectionActive(c *Connection, direction connectionDirection) {
 	c.log.Debugf("New active %v connection for peer %v", direction, c.remotePeerInfo.HostPort)
 
+    // 添加到Channel中
 	if added := ch.addConnection(c, direction); !added {
 		// The channel isn't in a valid state to accept this connection, close the connection.
 		c.close(LogField{"reason", "new active connection on closing channel"})
@@ -679,8 +692,11 @@ func (ch *Channel) connectionActive(c *Connection, direction connectionDirection
 	ch.addConnectionToPeer(c.remotePeerInfo.HostPort, c, direction)
 }
 
+// 添加对端连接
 func (ch *Channel) addConnectionToPeer(hostPort string, c *Connection, direction connectionDirection) {
+    // 添加peer
 	p := ch.RootPeers().GetOrAdd(hostPort)
+    // 在peer端也添加该链接
 	if err := p.addConnection(c, direction); err != nil {
 		c.log.WithFields(
 			LogField{"remoteHostPort", c.remotePeerInfo.HostPort},

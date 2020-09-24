@@ -47,6 +47,7 @@ type ReadBuffer struct {
 	err           error
 }
 
+// 获取一个readbuffer
 // NewReadBuffer returns a ReadBuffer wrapping a byte slice
 func NewReadBuffer(buffer []byte) *ReadBuffer {
 	return &ReadBuffer{initialLength: len(buffer), remaining: buffer}

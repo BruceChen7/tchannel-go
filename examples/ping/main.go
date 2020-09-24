@@ -40,7 +40,9 @@ type Ping struct {
 // Pong is the ping response type.
 type Pong Ping
 
+// 发送 ping
 func pingHandler(ctx json.Context, ping *Ping) (*Pong, error) {
+    // 直接返回消息
 	return &Pong{
 		Message: fmt.Sprintf("ping %v", ping),
 	}, nil
@@ -60,6 +62,7 @@ func listenAndHandle(s *tchannel.Channel, hostPort string) {
 	log.Infof("Service %s", hostPort)
 
 	// If no error is returned, the listen was successful. Serving happens in the background.
+    // 监听server
 	if err := s.ListenAndServe(hostPort); err != nil {
 		log.WithFields(
 			tchannel.LogField{Key: "hostPort", Value: hostPort},
@@ -76,6 +79,7 @@ func main() {
 	}
 
 	// Register a handler for the ping message on the PingService
+    // pingHandler 是这种类型func(context.Context, *ArgType)(*ResType, error)
 	json.Register(ch, json.Handlers{
 		"ping": pingHandler,
 	}, onError)
@@ -96,10 +100,12 @@ func main() {
 	peer := client.Peers().Add(ch.PeerInfo().HostPort)
 
 	var pong Pong
+    // 进行rpc调用, 返沪pong协议
 	if err := json.CallPeer(ctx, peer, "PingService", "ping", &Ping{"Hello World"}, &pong); err != nil {
 		log.WithFields(tchannel.ErrField(err)).Fatal("json.Call failed.")
 	}
 
+    // 返回pong消息
 	log.Infof("Received pong: %s", pong.Message)
 
 	// Create a new subchannel for the top-level channel

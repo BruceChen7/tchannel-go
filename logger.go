@@ -106,6 +106,7 @@ func (l nullLogger) WithFields(fields ...LogField) Logger {
 }
 
 // SimpleLogger prints logging information to standard out.
+// 全局变量，写到标准输入和输出
 var SimpleLogger = NewLogger(os.Stdout)
 
 type writerLogger struct {

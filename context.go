@@ -97,8 +97,8 @@ func WrapContextForTest(ctx context.Context, call IncomingCall) context.Context 
 // newIncomingContext creates a new context for an incoming call with the given span.
 func newIncomingContext(ctx context.Context, call IncomingCall, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return NewContextBuilder(timeout).
-		SetParentContext(ctx).
-		setIncomingCall(call).
+		SetParentContext(ctx). // 设置父context
+		setIncomingCall(call).  // 设置回调
 		Build()
 }
 

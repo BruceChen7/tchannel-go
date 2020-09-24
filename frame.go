@@ -130,6 +130,7 @@ func NewFrame(payloadCapacity int) *Frame {
 func (f *Frame) ReadBody(header []byte, r io.Reader) error {
 	// Copy the header into the underlying buffer so we have an assembled frame
 	// that can be directly forwarded.
+    // copy一份
 	copy(f.buffer, header)
 
 	// Parse the header into our typed struct.
@@ -137,6 +138,7 @@ func (f *Frame) ReadBody(header []byte, r io.Reader) error {
 		return err
 	}
 
+    // 获取body的大小
 	switch payloadSize := f.Header.PayloadSize(); {
 	case payloadSize > MaxFramePayloadSize:
 		return fmt.Errorf("invalid frame size %v", f.Header.size)
@@ -154,10 +156,12 @@ func (f *Frame) ReadBody(header []byte, r io.Reader) error {
 // use ReadBody instead.
 func (f *Frame) ReadIn(r io.Reader) error {
 	header := make([]byte, FrameHeaderSize)
+    // 读取header
 	if _, err := io.ReadFull(r, header); err != nil {
 		return err
 	}
 
+    // 然后读取body
 	return f.ReadBody(header, r)
 }
 

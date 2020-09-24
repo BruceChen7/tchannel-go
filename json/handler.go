@@ -93,9 +93,12 @@ func toHandler(f interface{}) (*handler, error) {
 // Register registers the specified methods specified as a map from method name to the
 // JSON handler function. The handler functions should have the following signature:
 // func(context.Context, *ArgType)(*ResType, error)
+// 注册回调事件
 func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context.Context, error)) error {
+    // 这是一个闭包
 	handlers := make(map[string]*handler)
 
+    // 创建hanndler
 	handler := tchannel.HandlerFunc(func(ctx context.Context, call *tchannel.InboundCall) {
 		h, ok := handlers[string(call.Method())]
 		if !ok {
@@ -109,14 +112,17 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
 	})
 
 	for m, f := range funcs {
+        // 利用反射来查看handle是否正确
 		h, err := toHandler(f)
 		if err != nil {
 			return fmt.Errorf("%v cannot be used as a handler: %v", m, err)
 		}
+        // 设置traceer
 		h.tracer = func() opentracing.Tracer {
 			return tchannel.TracerFromRegistrar(registrar)
 		}
 		handlers[m] = h
+        // 注册pprof
 		registrar.Register(handler, m)
 	}
 

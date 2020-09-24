@@ -48,6 +48,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 	}
 
 	callReq := new(callReq)
+    // message id相同
 	callReq.id = frame.Header.ID
 	initialFragment, err := parseInboundFragment(c.opts.FramePool, frame, callReq)
 	if err != nil {
@@ -60,6 +61,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 	}
 
 	call := new(InboundCall)
+    // 设置连接
 	call.conn = c
 	ctx, cancel := newIncomingContext(c.baseContext, call, callReq.TimeToLive)
 
@@ -79,12 +81,16 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 		return true
 	}
 
+    // 创建一个response
 	response := new(InboundCallResponse)
 	response.call = call
+    // 发起调用时间
 	response.calledAt = now
 	response.timeNow = c.timeNow
+    // 发起span
 	response.span = c.extractInboundSpan(callReq)
 	if response.span != nil {
+        // 将当前的span放到context
 		mex.ctx = opentracing.ContextWithSpan(mex.ctx, response.span)
 	}
 	response.mex = mex
@@ -121,7 +127,9 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 	response.statsReporter = c.statsReporter
 	response.commonStatsTags = call.commonStatsTags
 
+    // 设置响应头as
 	setResponseHeaders(call.headers, response.headers)
+    // 利用go routine执行一次调用
 	go c.dispatchInbound(c.connID, callReq.ID(), call, frame)
 	return false
 }
@@ -153,6 +161,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 		call.log.Debugf("Received incoming call for %s from %s", call.ServiceName(), c.remotePeerInfo)
 	}
 
+    // 获取方法名称
 	if err := call.readMethod(); err != nil {
 		call.log.WithFields(
 			LogField{"remotePeer", c.remotePeerInfo},
@@ -165,6 +174,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 	call.commonStatsTags["endpoint"] = call.methodString
 	call.statsReporter.IncCounter("inbound.calls.recvd", call.commonStatsTags, 1)
 	if span := call.response.span; span != nil {
+        // 设置span中的方法名称
 		span.SetOperationName(call.methodString)
 	}
 
@@ -200,6 +210,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 		}
 	}
 
+    // 调用handlers
 	c.handler.Handle(call.mex.ctx, call)
 }
 

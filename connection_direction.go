@@ -25,6 +25,7 @@ import "fmt"
 type connectionDirection int
 
 const (
+    // 是值为1
 	inbound connectionDirection = iota + 1
 	outbound
 )
