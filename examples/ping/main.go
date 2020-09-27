@@ -73,6 +73,7 @@ func listenAndHandle(s *tchannel.Channel, hostPort string) {
 
 func main() {
 	// Create a new TChannel for handling requests
+    // NewChannel: channel.go
 	ch, err := tchannel.NewChannel("PingService", &tchannel.ChannelOptions{Logger: tchannel.SimpleLogger})
 	if err != nil {
 		log.WithFields(tchannel.ErrField(err)).Fatal("Couldn't create new channel.")

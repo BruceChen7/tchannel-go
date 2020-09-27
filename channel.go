@@ -165,6 +165,7 @@ type Channel struct {
 	relayMaxConnTimeout time.Duration
 	relayTimerVerify    bool
 	internalHandlers    *handlerMap
+    // 注册用户的回调
 	handler             Handler
 	onPeerStatusChanged func(*Peer)
 	dialer              func(ctx context.Context, hostPort string) (net.Conn, error)
@@ -219,6 +220,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 		opts = &ChannelOptions{}
 	}
 
+    // 进程名称和进程号
 	processName := opts.ProcessName
 	if processName == "" {
 		processName = fmt.Sprintf("%s[%d]", filepath.Base(os.Args[0]), os.Getpid())
@@ -287,6 +289,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 	if opts.Handler != nil {
 		ch.handler = opts.Handler
 	} else {
+        // 设置一个handler
 		ch.handler = channelHandler{ch}
 	}
 
@@ -303,11 +306,14 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 		},
 		ServiceName: serviceName,
 	}
+    // 默认是client使用的channel
 	ch.mutable.state = ChannelClient
 	ch.mutable.conns = make(map[uint32]*Connection)
 	ch.createCommonStats()
+    // 处理内部的rpc请求
 	ch.internalHandlers = ch.createInternalHandlers()
 
+    // 在全局环境中注册channel
 	registerNewChannel(ch)
 
 	if opts.RelayHost != nil {
@@ -315,6 +321,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 	}
 
 	// Start the idle connection timer.
+    // 用来剔除空闲连接
 	ch.mutable.idleSweep = startIdleSweep(ch, opts)
 
 	return ch, nil
@@ -349,6 +356,7 @@ func (ch *Channel) Serve(l net.Listener) error {
 	mutable.peerInfo.IsEphemeral = false
 	ch.log = ch.log.WithFields(LogField{"hostPort", mutable.peerInfo.HostPort})
 	ch.log.Info("Channel is listening.")
+    // 启动一个goroutine来accept
 	go ch.serve()
 	return nil
 }
@@ -477,7 +485,7 @@ func (ch *Channel) serve() {
 	acceptBackoff := 0 * time.Millisecond
 
 	for {
-        // 从accept返回了
+        // 从accept返回了, 表示启动
 		netConn, err := ch.mutable.l.Accept()
 		if err != nil {
 			// Backoff from new accepts if this is a temporary error
@@ -689,6 +697,7 @@ func (ch *Channel) connectionActive(c *Connection, direction connectionDirection
 		return
 	}
 
+    // 添加到对端
 	ch.addConnectionToPeer(c.remotePeerInfo.HostPort, c, direction)
 }
 

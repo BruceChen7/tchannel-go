@@ -312,6 +312,7 @@ func (mexset *messageExchangeSet) newExchange(ctx context.Context, framePool Fra
 		msgType:   msgType,
 		msgID:     msgID,
 		ctx:       ctx,
+        // 创建一个receive Frame buffer
 		recvCh:    make(chan *Frame, bufferSize),
 		errCh:     newErrNotifier(),
 		mexset:    mexset,
@@ -338,7 +339,7 @@ func (mexset *messageExchangeSet) newExchange(ctx context.Context, framePool Fra
 		return nil, addErr
 	}
 
-    // 调用回调
+    // 调用exchange添加的回调
 	mexset.onAdded()
 
 	// TODO(mmihic): Put into a deadline ordered heap so we can garbage collected expired exchanges

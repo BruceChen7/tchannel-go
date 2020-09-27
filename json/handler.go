@@ -100,12 +100,14 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
 
     // 创建hanndler
 	handler := tchannel.HandlerFunc(func(ctx context.Context, call *tchannel.InboundCall) {
+        // 根据方法名取对应的回调
 		h, ok := handlers[string(call.Method())]
 		if !ok {
 			onError(ctx, fmt.Errorf("call for unregistered method: %s", call.Method()))
 			return
 		}
 
+        // 执行对应的回调
 		if err := h.Handle(ctx, call); err != nil {
 			onError(ctx, err)
 		}

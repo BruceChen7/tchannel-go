@@ -122,11 +122,13 @@ func runSubTest(t testing.TB, name string, f func(testing.TB)) {
 func WithTestServer(t testing.TB, chanOpts *ChannelOpts, f func(testing.TB, *TestServer)) {
 	chanOpts = chanOpts.Copy()
 	runCount := chanOpts.RunCount
+    // 默认创建一个server
 	if runCount < 1 {
 		runCount = 1
 	}
 
 	for i := 0; i < runCount; i++ {
+        // 之前有失败，直接返回
 		if t.Failed() {
 			return
 		}
@@ -136,6 +138,7 @@ func WithTestServer(t testing.TB, chanOpts *ChannelOpts, f func(testing.TB, *Tes
 			runSubTest(t, "no relay", func(t testing.TB) {
 				noRelayOpts := chanOpts.Copy()
 				noRelayOpts.DisableRelay = true
+                // 调用withServer
 				withServer(t, noRelayOpts, f)
 			})
 		}

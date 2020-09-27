@@ -58,6 +58,7 @@ func (is *idleSweep) start() {
 		LogField{"maxIdleTime", is.maxIdleTime},
 	).Info("Starting idle connections poller.")
 
+    // 开始启动
 	is.started = true
 	is.stopCh = make(chan struct{})
 	go is.pollerLoop()
@@ -100,7 +101,9 @@ func (is *idleSweep) checkIdleConnections() {
 			lastActivityTime = sendActivityTime
 		}
 
+        // 大于最大的空闲时间
 		if idleTime := now.Sub(lastActivityTime); idleTime >= is.maxIdleTime {
+            // append进来
 			idleConnections = append(idleConnections, conn)
 		}
 	}
@@ -108,6 +111,7 @@ func (is *idleSweep) checkIdleConnections() {
 
 	for _, conn := range idleConnections {
 		// It's possible that the connection is already closed when we get here.
+        // 如果已经释放
 		if !conn.IsActive() {
 			continue
 		}

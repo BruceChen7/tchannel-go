@@ -150,6 +150,7 @@ func getErrorFrame(t testing.TB) *Frame {
 
 func TestRoundTrip(t *testing.T) {
 	testutils.WithTestServer(t, nil, func(t testing.TB, ts *testutils.TestServer) {
+        // 创建handler
 		handler := newTestHandler(t)
 		ts.Register(raw.Wrap(handler), "echo")
 

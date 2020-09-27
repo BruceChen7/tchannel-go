@@ -188,19 +188,20 @@ type Connection struct {
 	sysConn          syscall.RawConn // may be nil if conn cannot be converted
 	localPeerInfo    LocalPeerInfo
 	remotePeerInfo   PeerInfo
-	sendCh           chan *Frame
+	sendCh           chan *Frame // 用来发送的一个Frame, 每个Frame为64K
 	stopCh           chan struct{}
 	state            connectionState
 	stateMut         sync.RWMutex
 	inbound          *messageExchangeSet
 	outbound         *messageExchangeSet
 	internalHandlers *handlerMap
-	handler          Handler
-	nextMessageID    atomic.Uint32
-	events           connectionEvents
-	commonStatsTags  map[string]string
-	relay            *Relayer
-	baseContext      context.Context
+	// Handle(ctx context.Context, call *InboundCall)
+	handler         Handler
+	nextMessageID   atomic.Uint32
+	events          connectionEvents
+	commonStatsTags map[string]string
+	relay           *Relayer
+	baseContext     context.Context
 
 	// outboundHP is the host:port we used to create this outbound connection.
 	// It may not match remotePeerInfo.HostPort, in which case the connection is
@@ -315,9 +316,9 @@ func (ch *Channel) setConnectionTosPriority(tosPriority tos.ToS, c net.Conn) err
 func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initialID uint32, outboundHP string, remotePeer PeerInfo, remotePeerAddress peerAddressComponents, events connectionEvents) *Connection {
 	opts := ch.connectionOptions.withDefaults()
 
-    // 获取连接id
+	// 获取连接id
 	connID := _nextConnID.Inc()
-    // 这个inbound, 就是一个flag，值为1, outbound为2
+	// 这个inbound, 就是一个flag，值为1, outbound为2
 	connDirection := inbound
 	log := ch.log.WithFields(LogFields{
 		{"connID", connID},
@@ -333,33 +334,33 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 	}
 
 	log = log.WithFields(LogField{"connectionDirection", connDirection})
-    // 获取本地server信息
+	// 获取本地server信息
 	peerInfo := ch.PeerInfo()
-    // 当前时间戳
+	// 当前时间戳
 	timeNow := ch.timeNow().UnixNano()
 
 	c := &Connection{
 		channelConnectionCommon: ch.channelConnectionCommon,
 
-		connID:             connID,
-		conn:               conn,
-		sysConn:            getSysConn(conn, log),
-		connDirection:      connDirection,
-		opts:               opts,
-		state:              connectionActive,
-        // 发送channel
-		sendCh:             make(chan *Frame, opts.getSendBufferSize(remotePeer.ProcessName)),
-        // stop channel
-		stopCh:             make(chan struct{}),
-		localPeerInfo:      peerInfo,
-		remotePeerInfo:     remotePeer,
-		remotePeerAddress:  remotePeerAddress,
-		outboundHP:         outboundHP,
-        // 初始化
-		inbound:            newMessageExchangeSet(log, messageExchangeSetInbound),
-		outbound:           newMessageExchangeSet(log, messageExchangeSetOutbound),
-		internalHandlers:   ch.internalHandlers,
-        // 用户自己的回调
+		connID:        connID,
+		conn:          conn,
+		sysConn:       getSysConn(conn, log),
+		connDirection: connDirection,
+		opts:          opts,
+		state:         connectionActive,
+		// 发送channel
+		sendCh: make(chan *Frame, opts.getSendBufferSize(remotePeer.ProcessName)),
+		// stop channel
+		stopCh:            make(chan struct{}),
+		localPeerInfo:     peerInfo,
+		remotePeerInfo:    remotePeer,
+		remotePeerAddress: remotePeerAddress,
+		outboundHP:        outboundHP,
+		// 初始化
+		inbound:          newMessageExchangeSet(log, messageExchangeSetInbound),
+		outbound:         newMessageExchangeSet(log, messageExchangeSetOutbound),
+		internalHandlers: ch.internalHandlers,
+		// 用户自己的回调, 调用channel的handler
 		handler:            ch.handler,
 		events:             events,
 		commonStatsTags:    ch.commonStatsTags,
@@ -375,10 +376,10 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 		}
 	}
 
-    // 设置message id
+	// 设置message id
 	c.nextMessageID.Store(initialID)
 	c.log = log
-    // 设置remove的回调
+	// 设置remove的回调
 	c.inbound.onRemoved = c.checkExchanges
 	c.outbound.onRemoved = c.checkExchanges
 	c.inbound.onAdded = c.onExchangeAdded
@@ -389,10 +390,13 @@ func (ch *Channel) newConnection(baseCtx context.Context, conn net.Conn, initial
 	}
 
 	// Connections are activated as soon as they are created.
+	// 调用OnActive的回调, 将新连接保存在channel和对端中
 	c.callOnActive()
 
-    // 创建两个goroutine
+	// 创建两个goroutine
+	// 一个用来读body,调用用户自定一的handler
 	go c.readFrames(connID)
+	// 用来写
 	go c.writeFrames(connID)
 	return c
 }
@@ -417,7 +421,7 @@ func (c *Connection) callOnActive() {
 	}
 	log.Info("Created new active connection.")
 
-    // 调用OnActive的回调
+	// 调用OnActive的回调
 	if f := c.events.OnActive; f != nil {
 		f(c)
 	}
@@ -425,6 +429,7 @@ func (c *Connection) callOnActive() {
 	if c.opts.HealthChecks.enabled() {
 		c.healthCheckCtx, c.healthCheckQuit = context.WithCancel(context.Background())
 		c.healthCheckDone = make(chan struct{})
+		// 开启对连接的健康检查
 		go c.healthCheck(c.connID)
 	}
 }
@@ -489,6 +494,7 @@ func (c *Connection) sendMessage(msg message) error {
 	}
 
 	select {
+	// 用来发送消息
 	case c.sendCh <- frame:
 		return nil
 	default:
@@ -679,19 +685,21 @@ func (c *Connection) readFrames(_ uint32) {
 	for {
 		// Read the header, avoid allocating the frame till we know the size
 		// we need to allocate.
+		// 填满frame
 		if _, err := io.ReadFull(c.conn, headerBuf); err != nil {
 			handleErr(err)
 			return
 		}
 
 		frame := c.opts.FramePool.Get()
+		//读取body
 		if err := frame.ReadBody(headerBuf, c.conn); err != nil {
 			handleErr(err)
 			c.opts.FramePool.Release(frame)
 			return
 		}
 
-        // 更新这一帧最新的活动时间
+		// 更新这个连接最新的活动时间
 		c.updateLastActivityRead(frame)
 
 		var releaseFrame bool
@@ -727,9 +735,10 @@ func (c *Connection) handleFrameNoRelay(frame *Frame) bool {
 	releaseFrame := true
 
 	// call req and call res messages may not want the frame released immediately.
+	// 根据header的类型来处理不同的请求
 	switch frame.Header.messageType {
 	case messageTypeCallReq:
-        // 获取rpc调用
+		// 获取rpc调用
 		releaseFrame = c.handleCallReq(frame)
 	case messageTypeCallReqContinue:
 		releaseFrame = c.handleCallReqContinue(frame)
@@ -737,6 +746,7 @@ func (c *Connection) handleFrameNoRelay(frame *Frame) bool {
 		releaseFrame = c.handleCallRes(frame)
 	case messageTypeCallResContinue:
 		releaseFrame = c.handleCallResContinue(frame)
+		// pingPong协议
 	case messageTypePingReq:
 		c.handlePingReq(frame)
 	case messageTypePingRes:
@@ -759,12 +769,14 @@ func (c *Connection) handleFrameNoRelay(frame *Frame) bool {
 func (c *Connection) writeFrames(_ uint32) {
 	for {
 		select {
+		// 从sendCh中读
 		case f := <-c.sendCh:
 			if c.log.Enabled(LogLevelDebug) {
 				c.log.Debugf("Writing frame %s", f.Header)
 			}
 
 			c.updateLastActivityWrite(f)
+			// 直接发送出去
 			err := f.WriteOut(c.conn)
 			c.opts.FramePool.Release(f)
 			if err != nil {
@@ -919,6 +931,7 @@ func (c *Connection) closeNetwork() {
 	// closed; no need to close the send channel (and closing the send
 	// channel would be dangerous since other goroutine might be sending)
 	c.log.Debugf("Closing underlying network connection")
+	// 停止健康检查
 	c.stopHealthCheck()
 	c.closeNetworkCalled.Store(true)
 	if err := c.conn.Close(); err != nil {

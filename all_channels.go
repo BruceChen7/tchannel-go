@@ -34,6 +34,7 @@ var channelMap = struct {
 	existing: make(map[string][]*Channel),
 }
 
+// 映射serviceName到channel
 func registerNewChannel(ch *Channel) {
 	serviceName := ch.ServiceName()
 	ch.createdStack = string(getStacks(false /* all */))
@@ -46,6 +47,7 @@ func registerNewChannel(ch *Channel) {
 	defer channelMap.Unlock()
 
 	existing := channelMap.existing[serviceName]
+    // 每个服务可以对应多个channel
 	channelMap.existing[serviceName] = append(existing, ch)
 }
 

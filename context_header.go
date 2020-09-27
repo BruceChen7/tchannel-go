@@ -24,6 +24,7 @@ import "golang.org/x/net/context"
 
 // ContextWithHeaders is a Context which contains request and response headers.
 type ContextWithHeaders interface {
+    // 本身是一个Context，接口内嵌
 	context.Context
 
 	// Headers returns the call request headers.

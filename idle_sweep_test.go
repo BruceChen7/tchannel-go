@@ -100,12 +100,16 @@ func connectionStatus(channels []*Channel) string {
 // Validates that inbound idle connections are dropped.
 func TestServerBasedSweep(t *testing.T) {
 	listener := newPeerStatusListener()
+    // 创建一个context
 	ctx, cancel := NewContext(time.Second)
 	defer cancel()
 
+    // 创建一个tick
 	serverTicker := testutils.NewFakeTicker()
+    // 创建初始clock
 	clock := testutils.NewStubClock(time.Now())
 
+    // 链式调用创建serverOptions
 	serverOpts := testutils.NewOpts().
 		SetTimeTicker(serverTicker.New).
 		SetIdleCheckInterval(30 * time.Second).

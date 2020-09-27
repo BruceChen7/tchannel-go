@@ -537,6 +537,7 @@ func introspectRuntimeVersion() RuntimeVersion {
 func (ch *Channel) createInternalHandlers() *handlerMap {
 	internalHandlers := &handlerMap{}
 
+    // 处理内部的rpc请求调用
 	endpoints := []struct {
 		name    string
 		handler func([]byte) interface{}

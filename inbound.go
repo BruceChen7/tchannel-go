@@ -63,8 +63,10 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 	call := new(InboundCall)
     // 设置连接
 	call.conn = c
+    // 从baseContext中创建一个新的context
 	ctx, cancel := newIncomingContext(c.baseContext, call, callReq.TimeToLive)
 
+    // 创建一个exchange
 	mex, err := c.inbound.newExchange(ctx, c.opts.FramePool, callReq.messageType(), frame.Header.ID, mexChannelBufferSize)
 	if err != nil {
 		if err == errDuplicateMex {
@@ -129,7 +131,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 
     // 设置响应头as
 	setResponseHeaders(call.headers, response.headers)
-    // 利用go routine执行一次调用
+    // 调用用户的回调，来设置响应
 	go c.dispatchInbound(c.connID, callReq.ID(), call, frame)
 	return false
 }
@@ -179,6 +181,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 	}
 
 	// TODO(prashant): This is an expensive way to check for cancellation. Use a heap for timeouts.
+    // 用来处理超时，取消等行为
 	go func() {
 		select {
 		case <-call.mex.ctx.Done():
@@ -187,6 +190,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 			// context.DeadlineExceeded
 			// context.Canceled
 			if call.mex.ctx.Err() != nil {
+                // message exchangec超时
 				call.mex.inboundExpired()
 			}
 		case <-call.mex.errCh.c:

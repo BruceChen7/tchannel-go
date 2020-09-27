@@ -109,6 +109,7 @@ func (hco HealthCheckOptions) withDefaults() HealthCheckOptions {
 // healthCheck will do periodic pings on the connection to check the state of the connection.
 // We accept connID on the stack so can more easily debug panics or leaked goroutines.
 func (c *Connection) healthCheck(connID uint32) {
+    // stopHealthCheck将会读这个check channel
 	defer close(c.healthCheckDone)
 
 	opts := c.opts.HealthChecks
@@ -127,6 +128,7 @@ func (c *Connection) healthCheck(connID uint32) {
 		ctx, cancel := context.WithTimeout(c.healthCheckCtx, opts.Timeout)
 		err := c.ping(ctx)
 		cancel()
+        // 添加一次检查
 		c.healthCheckHistory.add(err == nil)
 		if err == nil {
 			if c.log.Enabled(LogLevelDebug) {
@@ -171,6 +173,7 @@ func (c *Connection) stopHealthCheck() {
 		return
 	}
 	c.log.Debug("Stopping health checks.")
+    // 调用cancelFunc
 	c.healthCheckQuit()
 	<-c.healthCheckDone
 }
