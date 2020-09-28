@@ -37,6 +37,7 @@ var errInboundRequestAlreadyActive = errors.New("inbound request is already acti
 // another goroutine
 func (c *Connection) handleCallReq(frame *Frame) bool {
 	now := c.timeNow()
+    // 获取连接状态
 	switch state := c.readState(); state {
 	case connectionActive:
 		break
@@ -66,7 +67,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
     // 从baseContext中创建一个新的context
 	ctx, cancel := newIncomingContext(c.baseContext, call, callReq.TimeToLive)
 
-    // 创建一个exchange
+    // 每一个call req 创建一个exchange
 	mex, err := c.inbound.newExchange(ctx, c.opts.FramePool, callReq.messageType(), frame.Header.ID, mexChannelBufferSize)
 	if err != nil {
 		if err == errDuplicateMex {
@@ -95,6 +96,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
         // 将当前的span放到context
 		mex.ctx = opentracing.ContextWithSpan(mex.ctx, response.span)
 	}
+    // 初始化response信息
 	response.mex = mex
 	response.conn = c
 	response.cancel = cancel
@@ -129,7 +131,7 @@ func (c *Connection) handleCallReq(frame *Frame) bool {
 	response.statsReporter = c.statsReporter
 	response.commonStatsTags = call.commonStatsTags
 
-    // 设置响应头as
+    // 设置响应头as, as可能取值为thrift, json, http, raw
 	setResponseHeaders(call.headers, response.headers)
     // 调用用户的回调，来设置响应
 	go c.dispatchInbound(c.connID, callReq.ID(), call, frame)
@@ -158,6 +160,7 @@ func (call *InboundCall) createStatsTags(connectionTags map[string]string) {
 }
 
 // dispatchInbound ispatches an inbound call to the appropriate handler
+// frame是从客户端那里读取的packet
 func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, frame *Frame) {
 	if call.log.Enabled(LogLevelDebug) {
 		call.log.Debugf("Received incoming call for %s from %s", call.ServiceName(), c.remotePeerInfo)
@@ -173,6 +176,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 		return
 	}
 
+    // 统计对应的方法名称
 	call.commonStatsTags["endpoint"] = call.methodString
 	call.statsReporter.IncCounter("inbound.calls.recvd", call.commonStatsTags, 1)
 	if span := call.response.span; span != nil {
@@ -190,7 +194,7 @@ func (c *Connection) dispatchInbound(_ uint32, _ uint32, call *InboundCall, fram
 			// context.DeadlineExceeded
 			// context.Canceled
 			if call.mex.ctx.Err() != nil {
-                // message exchangec超时
+                // message exchange 超时
 				call.mex.inboundExpired()
 			}
 		case <-call.mex.errCh.c:
@@ -295,6 +299,7 @@ func (call *InboundCall) CallOptions() *CallOptions {
 
 // Reads the entire method name (arg1) from the request stream.
 func (call *InboundCall) readMethod() error {
+    // arg1是method name
 	var arg1 []byte
 	if err := NewArgReader(call.arg1Reader()).Read(&arg1); err != nil {
 		return call.failed(err)

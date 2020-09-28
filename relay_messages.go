@@ -109,15 +109,18 @@ type lazyCallReq struct {
 }
 
 // TODO: Consider pooling lazyCallReq and using pointers to the struct.
-
+// 用来解析rpc call协议中的内容
 func newLazyCallReq(f *Frame) (*lazyCallReq, error) {
 	if msgType := f.Header.messageType; msgType != messageTypeCallReq {
 		panic(fmt.Errorf("newLazyCallReq called for wrong messageType: %v", msgType))
 	}
 
+    // 初始化
 	cr := &lazyCallReq{Frame: f}
+    // 初始化
 	cr.arg2Appends = cr.arg2InitialBuf[:0]
 
+    // readbufer
 	rbuf := typed.NewReadBuffer(f.SizedPayload())
 	rbuf.SkipBytes(_serviceLenIndex)
 
@@ -135,6 +138,7 @@ func newLazyCallReq(f *Frame) (*lazyCallReq, error) {
 		val := rbuf.ReadBytes(valLen)
 
 		if bytes.Equal(key, _argSchemeKeyBytes) {
+            // 协议
 			cr.as = val
 		} else if bytes.Equal(key, _callerNameKeyBytes) {
 			cr.caller = val

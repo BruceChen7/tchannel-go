@@ -123,5 +123,6 @@ func (hmap *handlerMap) Handle(ctx context.Context, call *InboundCall) {
 type channelHandler struct{ ch *Channel }
 
 func (c channelHandler) Handle(ctx context.Context, call *InboundCall) {
+    // 获取子channel，来处理
 	c.ch.GetSubChannel(call.ServiceName()).handler.Handle(ctx, call)
 }

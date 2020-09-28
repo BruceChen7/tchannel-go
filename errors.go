@@ -160,6 +160,7 @@ type SystemError struct {
 }
 
 // NewSystemError defines a new SystemError with a code and message
+// 返回一个错误
 func NewSystemError(code SystemErrCode, msg string, args ...interface{}) error {
 	return SystemError{code: code, msg: fmt.Sprintf(msg, args...)}
 }

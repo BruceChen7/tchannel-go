@@ -107,6 +107,7 @@ func (c *SubChannel) Isolated() bool {
 //
 // This function panics if the Handler for the SubChannel was overwritten with
 // SetHandler.
+// 用来设置handler
 func (c *SubChannel) Register(h Handler, methodName string) {
 	handlers, ok := c.handler.(*handlerMap)
 	if !ok {
@@ -115,6 +116,7 @@ func (c *SubChannel) Register(h Handler, methodName string) {
 			c.ServiceName(),
 		))
 	}
+    // 注册handler
 	handlers.register(h, methodName)
 }
 

@@ -271,6 +271,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 			relayLocal:    toStringSet(opts.RelayLocalHandlers),
 			statsReporter: statsReporter,
 			subChannels:   &subChannelMap{},
+            // 注册函数回调
 			timeNow:       timeNow,
 			timeTicker:    timeTicker,
 			tracer:        opts.Tracer,
@@ -317,6 +318,7 @@ func NewChannel(serviceName string, opts *ChannelOptions) (*Channel, error) {
 	registerNewChannel(ch)
 
 	if opts.RelayHost != nil {
+        // 中转服务器地址
 		opts.RelayHost.SetChannel(ch)
 	}
 
@@ -507,6 +509,7 @@ func (ch *Channel) serve() {
 				continue
 			} else {
 				// Only log an error if this didn't happen due to a Close.
+                // 非临时错误
 				if ch.State() >= ChannelStartClose {
 					return
 				}

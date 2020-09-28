@@ -80,7 +80,7 @@ func (ch *Channel) inboundHandshake(ctx context.Context, c net.Conn, events conn
 	}()
 
 	req := &initReq{}
-    // 读取body，获取消息id
+    // 读取一整个fraem，获取消息id
 	id, err = ch.readMessage(c, req)
 	if err != nil {
 		return nil, err
@@ -88,10 +88,11 @@ func (ch *Channel) inboundHandshake(ctx context.Context, c net.Conn, events conn
 
     // 版本不合适
 	if req.Version < CurrentProtocolVersion {
+        // 直接返回错误
 		return nil, unsupportedProtocolVersion(req.Version)
 	}
 
-    // 获取对端的ip地址信息
+    // 根据client发阔来的信息来，获取对端的ip地址信息
 	remotePeer, remotePeerAddress, err := parseRemotePeer(req.initParams, c.RemoteAddr())
 	if err != nil {
 		return nil, NewWrappedSystemError(ErrCodeProtocol, err)

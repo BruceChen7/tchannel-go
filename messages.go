@@ -89,9 +89,11 @@ type initMessage struct {
 }
 
 func (m *initMessage) read(r *typed.ReadBuffer) error {
+	// 首先的两个字节，提示版本信息
 	m.Version = r.ReadUint16()
 
 	m.initParams = initParams{}
+	// 第二部分用读取key, , value的个数
 	np := r.ReadUint16()
 	for i := 0; i < int(np); i++ {
 		k := r.ReadLen16String()
@@ -203,18 +205,24 @@ func (ch transportHeaders) write(w *typed.WriteBuffer) {
 type callReq struct {
 	id         uint32
 	TimeToLive time.Duration
-	Tracing    Span
-	Headers    transportHeaders
-	Service    string
+	// tracing字段
+	Tracing Span
+	Headers transportHeaders
+	Service string
 }
 
 func (m *callReq) ID() uint32               { return m.id }
 func (m *callReq) messageType() messageType { return messageTypeCallReq }
+
+// 反序列化callreq 对应的元信息
 func (m *callReq) read(r *typed.ReadBuffer) error {
 	m.TimeToLive = time.Duration(r.ReadUint32()) * time.Millisecond
+	// 获取tracing信息
 	m.Tracing.read(r)
+	// 获取一个字节的service
 	m.Service = r.ReadLen8String()
 	m.Headers = transportHeaders{}
+	//获取transportheader
 	m.Headers.read(r)
 	return r.Err()
 }

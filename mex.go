@@ -292,6 +292,7 @@ func (mexset *messageExchangeSet) addExchange(mex *messageExchange) error {
 		return errMexSetShutdown
 	}
 
+    // 如果已经存在了，那么直接返回错误
 	if _, ok := mexset.exchanges[mex.msgID]; ok {
 		return errDuplicateMex
 	}

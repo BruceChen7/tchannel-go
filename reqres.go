@@ -152,6 +152,7 @@ func (w *reqResWriter) flushFragment(fragment *writableFragment) error {
 		return w.failed(GetContextError(w.mex.ctx.Err()))
 	case <-w.mex.errCh.c:
 		return w.failed(w.mex.errCh.err)
+		// 向连接中写入
 	case w.conn.sendCh <- frame:
 		return nil
 	}
@@ -280,14 +281,23 @@ func (r *reqResReader) failed(err error) error {
 // parseInboundFragment parses an incoming fragment based on the given message
 func parseInboundFragment(framePool FramePool, frame *Frame, message message) (*readableFragment, error) {
 	rbuf := typed.NewReadBuffer(frame.SizedPayload())
+	// 获取一帧
 	fragment := new(readableFragment)
+    // 第一个字节为flags
+    // 0x01 more fragments follow
+    // 0x02, is request streaming
 	fragment.flags = rbuf.ReadSingleByte()
+    // 获取升序的协议信息
+    // https://tchannel.readthedocs.io/en/latest/protocol/#payloads
 	if err := message.read(rbuf); err != nil {
 		return nil, err
 	}
 
+    //设置checksumType
 	fragment.checksumType = ChecksumType(rbuf.ReadSingleByte())
+    // 根据checksumType的字节动态的读取checkSum
 	fragment.checksum = rbuf.ReadBytes(fragment.checksumType.ChecksumSize())
+    // 剩余args内容
 	fragment.contents = rbuf
 	fragment.onDone = func() {
 		framePool.Release(frame)

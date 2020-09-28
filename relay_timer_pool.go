@@ -29,6 +29,7 @@ import (
 type relayTimerTrigger func(items *relayItems, id uint32, isOriginator bool)
 
 type relayTimerPool struct {
+    // 对象池子
 	pool    sync.Pool
 	trigger relayTimerTrigger
 	verify  bool
@@ -65,12 +66,14 @@ func newRelayTimerPool(trigger relayTimerTrigger, verify bool) *relayTimerPool {
 // Get returns a relay timer that has not started. Timers must be started explicitly
 // using the Start function.
 func (tp *relayTimerPool) Get() *relayTimer {
+    // 获取timer
 	timer, ok := tp.pool.Get().(*relayTimer)
 	if ok {
 		timer.released = false
 		return timer
 	}
 
+    // 创建一个timer
 	rt := &relayTimer{
 		pool: tp,
 	}
@@ -78,6 +81,7 @@ func (tp *relayTimerPool) Get() *relayTimer {
 	// the timer and starting the timer for use in the relay code paths.
 	// To make this work without more locks in the relayTimer, we create a Go timer
 	// with a huge timeout so it doesn't run, then stop it so we can start it later.
+    // 先创建，然后stop这种方式
 	rt.timer = time.AfterFunc(time.Duration(math.MaxInt64), rt.OnTimer)
 	if !rt.timer.Stop() {
 		panic("relayTimer requires timers in stopped state, but failed to stop underlying timer")
@@ -95,6 +99,7 @@ func (tp *relayTimerPool) Put(rt *relayTimer) {
 	tp.pool.Put(rt)
 }
 
+// 开始启动timer
 // Start starts a timer with the given duration for the specified ID.
 func (rt *relayTimer) Start(d time.Duration, items *relayItems, id uint32, isOriginator bool) {
 	rt.verifyNotReleased()

@@ -135,6 +135,7 @@ func (r *relayItems) Add(id uint32, item relayItem) {
 // relayed call.
 func (r *relayItems) Delete(id uint32) (relayItem, bool) {
 	r.Lock()
+    // 找到对应的id
 	item, ok := r.items[id]
 	if !ok {
 		r.Unlock()
@@ -146,7 +147,7 @@ func (r *relayItems) Delete(id uint32) (relayItem, bool) {
 		r.tombs--
 	}
 	r.Unlock()
-
+    // 释放
 	item.timeout.Release()
 	return item, !item.tomb
 }
@@ -203,6 +204,7 @@ type Relayer struct {
 	// outbound is the remapping for requests that originated on this
 	// connection, and are outbound towards some other connection.
 	// It stores remappings for all request frames read on this connection.
+    // 用来发出去的
 	outbound *relayItems
 
 	// inbound is the remapping for requests that originated on some other
@@ -246,6 +248,7 @@ func NewRelayer(ch *Channel, conn *Connection) *Relayer {
 
 // Relay is called for each frame that is read on the connection.
 func (r *Relayer) Relay(f *Frame) (shouldRelease bool, _ error) {
+    // 如果是非call协议
 	if f.messageType() != messageTypeCallReq {
 		err := r.handleNonCallReq(f)
 		if err == errUnknownID {
@@ -264,18 +267,22 @@ func (r *Relayer) Relay(f *Frame) (shouldRelease bool, _ error) {
 		return _relayNoRelease, err
 	}
 
+    // 开始对Call rpc进行转发
 	return r.handleCallReq(cr)
 }
 
 // Receive receives frames intended for this connection.
 // It returns whether the frame was sent and a reason for failure if it failed.
+// ftype表示响应的类型，表示proxy的入口和出口
 func (r *Relayer) Receive(f *Frame, fType frameType) (sent bool, failureReason string) {
+    // 获取message id
 	id := f.Header.ID
 
 	// If we receive a response frame, we expect to find that ID in our outbound.
 	// If we receive a request frame, we expect to find that ID in our inbound.
 	items := r.receiverItems(fType)
 
+    // 根据id获取relayItem
 	item, ok := items.Get(id)
 	if !ok {
 		r.logger.WithFields(
@@ -284,6 +291,7 @@ func (r *Relayer) Receive(f *Frame, fType frameType) (sent bool, failureReason s
 		return false, _relayErrorNotFound
 	}
 
+    // 判断frame是否是rpc call的最后一帧
 	finished := finishesCall(f)
 	if item.tomb {
 		// Call timed out, ignore this frame. (We've already handled stats.)
@@ -293,6 +301,7 @@ func (r *Relayer) Receive(f *Frame, fType frameType) (sent bool, failureReason s
 
 	// If the call is finished, we stop the timeout to ensure
 	// we don't have concurrent calls to end the call.
+    // 这个timeout的要分析下
 	if finished && !item.timeout.Stop() {
 		// Timeout goroutine is already ending this call.
 		return true, ""
@@ -310,14 +319,17 @@ func (r *Relayer) Receive(f *Frame, fType frameType) (sent bool, failureReason s
 		}
 	}
 	select {
+    // 向连接中写入frame
 	case r.conn.sendCh <- f:
 	default:
 		// Buffer is full, so drop this frame and cancel the call.
 
+        // 打印日志
 		// Since this is typically due to the send buffer being full, get send buffer
 		// usage + limit and add that to the log.
 		sendBuf, sendBufLimit, sendBufErr := r.conn.sendBufSize()
 		now := r.conn.timeNow().UnixNano()
+        // log的日志
 		logFields := []LogField{
 			{"id", id},
 			{"destConnSendBufferCurrent", sendBuf},
@@ -348,6 +360,7 @@ func (r *Relayer) Receive(f *Frame, fType frameType) (sent bool, failureReason s
 	}
 
 	if finished {
+        // 回收资源
 		r.finishRelayItem(items, id)
 	}
 
@@ -409,11 +422,13 @@ func (r *Relayer) getDestination(f *lazyCallReq, call RelayCall) (*Connection, b
 	return remoteConn, true, nil
 }
 
+// 用来转发
 func (r *Relayer) handleCallReq(f *lazyCallReq) (shouldRelease bool, _ error) {
 	if handled := r.handleLocalCallReq(f); handled {
 		return _relayNoRelease, nil
 	}
 
+    // 转发服务
 	call, err := r.relayHost.Start(f, r.relayConn)
 	if err != nil {
 		// If we have a RateLimitDropError we record the statistic, but
@@ -621,6 +636,7 @@ func (r *Relayer) finishRelayItem(items *relayItems, id uint32) {
 	if !ok {
 		return
 	}
+    // 发起者，直接调用结束
 	if item.isOriginator {
 		item.call.End()
 	}

@@ -181,17 +181,18 @@ type connectionEvents struct {
 type Connection struct {
 	channelConnectionCommon
 
-	connID           uint32
-	connDirection    connectionDirection
-	opts             ConnectionOptions
-	conn             net.Conn
-	sysConn          syscall.RawConn // may be nil if conn cannot be converted
-	localPeerInfo    LocalPeerInfo
-	remotePeerInfo   PeerInfo
-	sendCh           chan *Frame // 用来发送的一个Frame, 每个Frame为64K
-	stopCh           chan struct{}
-	state            connectionState
-	stateMut         sync.RWMutex
+	connID         uint32
+	connDirection  connectionDirection
+	opts           ConnectionOptions
+	conn           net.Conn
+	sysConn        syscall.RawConn // may be nil if conn cannot be converted
+	localPeerInfo  LocalPeerInfo
+	remotePeerInfo PeerInfo
+	sendCh         chan *Frame // 用来发送的一个Frame, 每个Frame为64K
+	stopCh         chan struct{}
+	state          connectionState
+	stateMut       sync.RWMutex
+	// 进来连接的message_set
 	inbound          *messageExchangeSet
 	outbound         *messageExchangeSet
 	internalHandlers *handlerMap
@@ -200,8 +201,9 @@ type Connection struct {
 	nextMessageID   atomic.Uint32
 	events          connectionEvents
 	commonStatsTags map[string]string
-	relay           *Relayer
-	baseContext     context.Context
+	// 用来转发frames
+	relay       *Relayer
+	baseContext context.Context
 
 	// outboundHP is the host:port we used to create this outbound connection.
 	// It may not match remotePeerInfo.HostPort, in which case the connection is
@@ -480,12 +482,14 @@ func (c *Connection) handlePingReq(frame *Frame) {
 	}
 
 	pingRes := &pingRes{id: frame.Header.ID}
+	// 用来发送ping pong的响应
 	if err := c.sendMessage(pingRes); err != nil {
 		c.connectionError("send pong", err)
 	}
 }
 
 // sendMessage sends a standalone message (typically a control message)
+// 用来发送ping pong的响应
 func (c *Connection) sendMessage(msg message) error {
 	frame := c.opts.FramePool.Get()
 	if err := frame.write(msg); err != nil {
@@ -494,7 +498,7 @@ func (c *Connection) sendMessage(msg message) error {
 	}
 
 	select {
-	// 用来发送消息
+	// 向sendCh中写入
 	case c.sendCh <- frame:
 		return nil
 	default:
@@ -561,6 +565,7 @@ func (c *Connection) SendSystemError(id uint32, span Span, err error) error {
 		}
 
 		select {
+		// 用来发送错误信息
 		case c.sendCh <- frame: // Good to go
 			return nil
 		default: // If the send buffer is full, log and return an error.
@@ -688,6 +693,7 @@ func (c *Connection) readFrames(_ uint32) {
 		// 填满frame
 		if _, err := io.ReadFull(c.conn, headerBuf); err != nil {
 			handleErr(err)
+			// 这里直接返回了
 			return
 		}
 
@@ -703,6 +709,7 @@ func (c *Connection) readFrames(_ uint32) {
 		c.updateLastActivityRead(frame)
 
 		var releaseFrame bool
+		// 没有路由节点
 		if c.relay == nil {
 			releaseFrame = c.handleFrameNoRelay(frame)
 		} else {
@@ -716,6 +723,7 @@ func (c *Connection) readFrames(_ uint32) {
 
 func (c *Connection) handleFrameRelay(frame *Frame) bool {
 	switch frame.Header.messageType {
+	// message call的请求类型
 	case messageTypeCallReq, messageTypeCallReqContinue, messageTypeCallRes, messageTypeCallResContinue, messageTypeError:
 		shouldRelease, err := c.relay.Relay(frame)
 		if err != nil {

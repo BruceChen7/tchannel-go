@@ -41,6 +41,7 @@ type Handlers map[string]interface{}
 // verifyHandler ensures that the given t is a function with the following signature:
 // func(json.Context, *ArgType)(*ResType, error)
 func verifyHandler(t reflect.Type) error {
+    // 签名部分
 	if t.NumIn() != 2 || t.NumOut() != 2 {
 		return fmt.Errorf("handler should be of format func(json.Context, *ArgType) (*ResType, error)")
 	}
@@ -98,7 +99,7 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
     // 这是一个闭包
 	handlers := make(map[string]*handler)
 
-    // 创建hanndler
+    // 创建handle，将用户的回调的签名转成
 	handler := tchannel.HandlerFunc(func(ctx context.Context, call *tchannel.InboundCall) {
         // 根据方法名取对应的回调
 		h, ok := handlers[string(call.Method())]
@@ -114,7 +115,7 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
 	})
 
 	for m, f := range funcs {
-        // 利用反射来查看handle是否正确
+        // 利用反射来查看用户提供的hanler结构是否正确
 		h, err := toHandler(f)
 		if err != nil {
 			return fmt.Errorf("%v cannot be used as a handler: %v", m, err)
@@ -124,7 +125,6 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
 			return tchannel.TracerFromRegistrar(registrar)
 		}
 		handlers[m] = h
-        // 注册pprof
 		registrar.Register(handler, m)
 	}
 
@@ -132,6 +132,7 @@ func Register(registrar tchannel.Registrar, funcs Handlers, onError func(context
 }
 
 // Handle deserializes the JSON arguments and calls the underlying handler.
+// 协议的内容可见: https://tchannel.readthedocs.io/en/latest/json/
 func (h *handler) Handle(tctx context.Context, call *tchannel.InboundCall) error {
 	var headers map[string]string
 	if err := tchannel.NewArgReader(call.Arg2Reader()).ReadJSON(&headers); err != nil {
@@ -155,8 +156,11 @@ func (h *handler) Handle(tctx context.Context, call *tchannel.InboundCall) error
 	}
 
 	args := []reflect.Value{reflect.ValueOf(ctx), callArg}
+    // 直接调用对于给你的结果
+    // h.handler为reflect.ValueOf
 	results := h.handler.Call(args)
 
+    // 获取结果
 	res := results[0].Interface()
 	err := results[1].Interface()
 	// If an error was returned, we create an error arg3 to respond with.

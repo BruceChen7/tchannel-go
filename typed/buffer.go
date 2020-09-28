@@ -42,6 +42,7 @@ var (
 // A ReadBuffer is a wrapper around an underlying []byte with methods to read from
 // that buffer in big-endian format.
 type ReadBuffer struct {
+    // 初始化长度
 	initialLength int
 	remaining     []byte
 	err           error

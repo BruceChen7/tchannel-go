@@ -184,6 +184,7 @@ func (f *Frame) WriteOut(w io.Writer) error {
 
 // SizedPayload returns the slice of the payload actually used, as defined by the header
 func (f *Frame) SizedPayload() []byte {
+    // 读取最多PayloadSize
 	return f.Payload[:f.Header.PayloadSize()]
 }
 
